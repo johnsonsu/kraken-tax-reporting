@@ -1,4 +1,4 @@
-# kraken_acb
+# Kraken ACB Tax Report Generator
 
 Rust tools for generating a Canadian crypto tax report (ACB method) from Kraken exports.
 
