@@ -59,6 +59,53 @@ Example:
 cargo run -- ./kraken_2024_2025_ledgers.csv 2025 report_2025.csv 1.3978
 ```
 
+## Download Prebuilt Binaries
+
+Prebuilt binaries are published on GitHub Releases:
+
+- [Releases](https://github.com/johnsonsu/kraken-tax-reporting/releases)
+
+Assets are generated from version tags (for example `v0.1.1`) for:
+
+- `x86_64-unknown-linux-gnu`
+- `aarch64-unknown-linux-gnu`
+- `x86_64-apple-darwin`
+- `aarch64-apple-darwin`
+- `x86_64-pc-windows-msvc`
+
+File naming:
+
+- `kraken_acb-v{version}-{target}.tar.gz` (Linux/macOS)
+- `kraken_acb-v{version}-{target}.zip` (Windows)
+- `checksums.txt`
+
+Linux/macOS quick run:
+
+```bash
+tar -xzf kraken_acb-v0.1.1-x86_64-unknown-linux-gnu.tar.gz
+chmod +x kraken_acb
+./kraken_acb ./kraken_2024_2025_ledgers.csv 2025 report_2025.csv 1.3978
+```
+
+Windows quick run (PowerShell):
+
+```powershell
+Expand-Archive .\kraken_acb-v0.1.1-x86_64-pc-windows-msvc.zip -DestinationPath .
+.\kraken_acb.exe .\kraken_2024_2025_ledgers.csv 2025 report_2025.csv 1.3978
+```
+
+Verify checksums:
+
+```bash
+sha256sum -c checksums.txt
+```
+
+PowerShell checksum example:
+
+```powershell
+Get-FileHash .\kraken_acb-v0.1.1-x86_64-pc-windows-msvc.zip -Algorithm SHA256
+```
+
 ## Output
 
 ### CSV report columns
