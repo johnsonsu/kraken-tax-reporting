@@ -27,11 +27,11 @@ jobs:
             use_cross: true
           - os: macos-15-intel
             target: x86_64-apple-darwin
-            archive_ext: tar.gz
+            archive_ext: zip
             use_cross: false
           - os: macos-15
             target: aarch64-apple-darwin
-            archive_ext: tar.gz
+            archive_ext: zip
             use_cross: false
           - os: windows-latest
             target: x86_64-pc-windows-msvc
@@ -61,6 +61,49 @@ jobs:
         if: matrix.use_cross
         run: cross build --release --target ${{ matrix.target }}
 
+      - name: Import Apple signing certificate
+        if: runner.os == 'macOS'
+        env:
+          APPLE_DEVELOPER_ID_CERT_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_CERT_BASE64 }}
+          APPLE_DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERT_PASSWORD }}
+        shell: bash
+        run: |
+          if [[ -z "$APPLE_DEVELOPER_ID_CERT_BASE64" || -z "$APPLE_DEVELOPER_ID_CERT_PASSWORD" ]]; then
+            echo "Developer ID certificate not configured. Will use ad-hoc signing."
+            exit 0
+          fi
+
+          CERT_PATH="$RUNNER_TEMP/developer-id.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+
+          echo "$APPLE_DEVELOPER_ID_CERT_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$APPLE_DEVELOPER_ID_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+      - name: Codesign macOS binary
+        if: runner.os == 'macOS'
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        shell: bash
+        run: |
+          BIN_PATH="target/${{ matrix.target }}/release/kraken_acb"
+          if [[ -n "$APPLE_SIGNING_IDENTITY" ]]; then
+            echo "Using Developer ID signing identity."
+            codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$BIN_PATH"
+            echo "MAC_SIGN_MODE=developer_id" >> "$GITHUB_ENV"
+          else
+            echo "No Developer ID identity configured. Using ad-hoc signing."
+            codesign --force --sign - "$BIN_PATH"
+            echo "MAC_SIGN_MODE=adhoc" >> "$GITHUB_ENV"
+          fi
+          codesign --verify --verbose=2 "$BIN_PATH"
+
       - name: Compute release metadata
         shell: bash
         run: |
@@ -82,13 +125,57 @@ jobs:
           tar -C dist -czf "${ASSET_BASENAME}.tar.gz" kraken_acb README.md
 
       - name: Package (zip)
-        if: matrix.archive_ext == 'zip'
+        if: matrix.archive_ext == 'zip' && runner.os == 'Windows'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path dist -Force | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/kraken_acb.exe" "dist/kraken_acb.exe"
           Copy-Item "README.md" "dist/README.md"
           Compress-Archive -Path "dist/kraken_acb.exe","dist/README.md" -DestinationPath "${env:ASSET_BASENAME}.zip" -Force
+
+      - name: Package macOS zip
+        if: matrix.archive_ext == 'zip' && runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/kraken_acb" "dist/kraken_acb"
+          cp README.md "dist/README.md"
+          ditto -c -k --sequesterRsrc --keepParent dist "${ASSET_BASENAME}.zip"
+
+      - name: Notarize macOS zip
+        if: matrix.archive_ext == 'zip' && runner.os == 'macOS'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        shell: bash
+        run: |
+          echo "MAC_NOTARIZED=false" >> "$GITHUB_ENV"
+          if [[ "${MAC_SIGN_MODE}" != "developer_id" ]]; then
+            echo "Skipping notarization (ad-hoc signed build)."
+            exit 0
+          fi
+
+          if [[ -z "$APPLE_ID" || -z "$APPLE_TEAM_ID" || -z "$APPLE_APP_SPECIFIC_PASSWORD" ]]; then
+            echo "Skipping notarization (notary credentials not configured)."
+            exit 0
+          fi
+
+          xcrun notarytool submit "${ASSET_BASENAME}.zip" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --wait
+          echo "MAC_NOTARIZED=true" >> "$GITHUB_ENV"
+
+      - name: Verify Gatekeeper acceptance (macOS)
+        if: matrix.archive_ext == 'zip' && runner.os == 'macOS' && env.MAC_NOTARIZED == 'true'
+        shell: bash
+        run: |
+          rm -rf verify-dist
+          mkdir -p verify-dist
+          ditto -x -k "${ASSET_BASENAME}.zip" verify-dist
+          spctl --assess --type execute --verbose verify-dist/dist/kraken_acb
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
