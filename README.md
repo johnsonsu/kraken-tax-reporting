@@ -91,15 +91,15 @@ macOS quick run:
 
 ```bash
 unzip kraken_acb-v0.1.1-aarch64-apple-darwin.zip
-chmod +x dist/kraken_acb
-./dist/kraken_acb ./kraken_2024_2025_ledgers.csv 2025 report_2025.csv 1.3978
+chmod +x ./kraken_acb
+./kraken_acb ./kraken_2024_2025_ledgers.csv 2025 report_2025.csv 1.3978
 ```
 
 Windows quick run (PowerShell):
 
 ```powershell
 Expand-Archive .\kraken_acb-v0.1.1-x86_64-pc-windows-msvc.zip -DestinationPath .
-.\dist\kraken_acb.exe .\kraken_2024_2025_ledgers.csv 2025 report_2025.csv 1.3978
+.\kraken_acb.exe .\kraken_2024_2025_ledgers.csv 2025 report_2025.csv 1.3978
 ```
 
 Verify checksums:
@@ -123,7 +123,7 @@ If the binary is ad-hoc signed (not notarized), macOS may show:
 One-time local workaround:
 
 ```bash
-xattr -dr com.apple.quarantine ./dist/kraken_acb
+xattr -dr com.apple.quarantine ./kraken_acb
 ```
 
 Then run the binary normally.
