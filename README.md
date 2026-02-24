@@ -75,11 +75,11 @@ Assets are generated from version tags (for example `v0.1.1`) for:
 
 File naming:
 
-- `kraken_acb-v{version}-{target}.tar.gz` (Linux/macOS)
-- `kraken_acb-v{version}-{target}.zip` (Windows)
+- `kraken_acb-v{version}-{target}.tar.gz` (Linux)
+- `kraken_acb-v{version}-{target}.zip` (macOS/Windows)
 - `checksums.txt`
 
-Linux/macOS quick run:
+Linux quick run:
 
 ```bash
 tar -xzf kraken_acb-v0.1.1-x86_64-unknown-linux-gnu.tar.gz
@@ -87,11 +87,19 @@ chmod +x kraken_acb
 ./kraken_acb ./kraken_2024_2025_ledgers.csv 2025 report_2025.csv 1.3978
 ```
 
+macOS quick run:
+
+```bash
+unzip kraken_acb-v0.1.1-aarch64-apple-darwin.zip
+chmod +x dist/kraken_acb
+./dist/kraken_acb ./kraken_2024_2025_ledgers.csv 2025 report_2025.csv 1.3978
+```
+
 Windows quick run (PowerShell):
 
 ```powershell
 Expand-Archive .\kraken_acb-v0.1.1-x86_64-pc-windows-msvc.zip -DestinationPath .
-.\kraken_acb.exe .\kraken_2024_2025_ledgers.csv 2025 report_2025.csv 1.3978
+.\dist\kraken_acb.exe .\kraken_2024_2025_ledgers.csv 2025 report_2025.csv 1.3978
 ```
 
 Verify checksums:
@@ -105,6 +113,20 @@ PowerShell checksum example:
 ```powershell
 Get-FileHash .\kraken_acb-v0.1.1-x86_64-pc-windows-msvc.zip -Algorithm SHA256
 ```
+
+## macOS Gatekeeper Note
+
+If the binary is ad-hoc signed (not notarized), macOS may show:
+
+`Apple could not verify "kraken_acb" is free of malware that may harm your Mac or compromise your privacy.`
+
+One-time local workaround:
+
+```bash
+xattr -dr com.apple.quarantine ./dist/kraken_acb
+```
+
+Then run the binary normally.
 
 ## Output
 
